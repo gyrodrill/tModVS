@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<PackageLanguagePackManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
+  <Metadata>
+    <DisplayName>tModVS</DisplayName>
+    <Description>一个帮助开发tMod的插件。</Description>
+    <MoreInfo></MoreInfo>
+    <License>LICENSE.txt</License>
+    <ReleaseNotes></ReleaseNotes>
+    <Icon>Terraria.ico</Icon>
+  </Metadata>
+</PackageLanguagePackManifest>
