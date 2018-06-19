@@ -1,0 +1,10 @@
+﻿{
+  "author": "Gyrodrill",
+  "version": "0.0.0.1",
+  "displayName": "Empty Mod",
+  "homepage": "https//gyrodrill.github.io/tMod",
+  "hideCode": true,
+  "hideResources": true,
+  "includeSource": false,
+  "includePDB": true
+}
