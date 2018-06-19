@@ -19,12 +19,10 @@ using AssemblyHashAlgorithm = Mono.Cecil.AssemblyHashAlgorithm;
 
 namespace tModVS
 {
-    internal class TmodFile
+    internal class TmodProp
     {
-        public Dictionary<string, byte[]> files = new Dictionary<string, byte[]>();
         public Version tModLoaderVersion;
         public string name;
-        public string path;
         public string author;
         public Version version;
         public byte[] hash;
@@ -40,7 +38,11 @@ namespace tModVS
         public bool includePDB;
         public bool editAndContinue;
         public byte side = 0;
-
+    }
+    internal class TmodFile
+    {
+        public Dictionary<string, byte[]> files = new Dictionary<string, byte[]>();
+        public TmodProp prop;
         internal void AddFile(string fileName, byte[] data)
         {
             this.files[fileName.Replace('\\', '/')] = data;
@@ -63,96 +65,94 @@ namespace tModVS
         }
         internal byte[] GetInfo()
         {
-            byte[] result;
             using (MemoryStream memoryStream = new MemoryStream())
             {
                 using (BinaryWriter binaryWriter = new BinaryWriter(memoryStream))
                 {
-                    if (dllReferences.Length != 0)
+                    if (prop.dllReferences.Length != 0)
                     {
                         binaryWriter.Write("dllReferences");
-                        foreach (var t in dllReferences)
+                        foreach (var t in prop.dllReferences)
                         {
                             binaryWriter.Write(t);
                         }
                         binaryWriter.Write("");
                     }
-                    if (modReferences.Length != 0)
+                    if (prop.modReferences.Length != 0)
                     {
                         binaryWriter.Write("modReferences");
-                        foreach (var t in modReferences)
+                        foreach (var t in prop.modReferences)
                         {
                             binaryWriter.Write(t);
                         }
                         binaryWriter.Write("");
                     }
-                    if (weakReferences.Length != 0)
+                    if (prop.weakReferences.Length != 0)
                     {
                         binaryWriter.Write("weakReferences");
-                        foreach (var t in weakReferences)
+                        foreach (var t in prop.weakReferences)
                         {
                             binaryWriter.Write(t);
                         }
                         binaryWriter.Write("");
                     }
-                    if (sortAfter.Length != 0)
+                    if (prop.sortAfter.Length != 0)
                     {
                         binaryWriter.Write("sortAfter");
-                        foreach (var t in sortAfter)
+                        foreach (var t in prop.sortAfter)
                         {
                             binaryWriter.Write(t);
                         }
                         binaryWriter.Write("");
                     }
-                    if (sortBefore.Length != 0)
+                    if (prop.sortBefore.Length != 0)
                     {
                         binaryWriter.Write("sortBefore");
-                        foreach (var t in sortBefore)
+                        foreach (var t in prop.sortBefore)
                         {
                             binaryWriter.Write(t);
                         }
                         binaryWriter.Write("");
                     }
-                    if (author.Length > 0)
+                    if (prop.author.Length > 0)
                     {
                         binaryWriter.Write("author");
-                        binaryWriter.Write(author);
+                        binaryWriter.Write(prop.author);
                     }
                     binaryWriter.Write("version");
-                    binaryWriter.Write(version.ToString());
-                    if (displayName.Length > 0)
+                    binaryWriter.Write(prop.version.ToString());
+                    if (prop.displayName.Length > 0)
                     {
                         binaryWriter.Write("displayName");
-                        binaryWriter.Write(displayName);
+                        binaryWriter.Write(prop.displayName);
                     }
-                    if (homepage.Length > 0)
+                    if (prop.homepage.Length > 0)
                     {
                         binaryWriter.Write("homepage");
-                        binaryWriter.Write(homepage);
+                        binaryWriter.Write(prop.homepage);
                     }
-                    if (description.Length > 0)
+                    if (prop.description.Length > 0)
                     {
                         binaryWriter.Write("description");
-                        binaryWriter.Write(description);
+                        binaryWriter.Write(prop.description);
                     }
-                    if (includePDB)
+                    if (prop.includePDB)
                     {
                         binaryWriter.Write("includePDB");
                     }
-                    if (editAndContinue)
+                    if (prop.editAndContinue)
                     {
                         binaryWriter.Write("editAndContinue");
                     }
-                    if (side != 0)
+                    if (prop.side != 0)
                     {
                         binaryWriter.Write("side");
-                        binaryWriter.Write(side);
+                        binaryWriter.Write(prop.side);
                     }
                     binaryWriter.Write("");
                 }
-                result = memoryStream.ToArray();
+                return memoryStream.ToArray();
             }
-            return result;
         }
 
         internal void AddResource(string relPath, string filePath)
@@ -212,8 +212,8 @@ namespace tModVS
                 {
                     using (BinaryWriter binaryWriter = new BinaryWriter(deflateStream))
                     {
-                        binaryWriter.Write(name);
-                        binaryWriter.Write(version.ToString());
+                        binaryWriter.Write(prop.name);
+                        binaryWriter.Write(prop.version.ToString());
                         binaryWriter.Write(files.Count);
                         foreach (var keyValuePair in from e in files
                                                      orderby GetFileState(e.Key)
@@ -226,15 +226,15 @@ namespace tModVS
                     }
                 }
                 byte[] array = memoryStream.ToArray();
-                this.hash = SHA1.Create().ComputeHash(array);
-                using (FileStream fileStream = File.Create(this.path))
+                prop.hash = SHA1.Create().ComputeHash(array);
+                using (FileStream fileStream = File.Create(Path.Combine(ModCompile.ModProjectFolder, "build.tmod")))
                 {
                     using (BinaryWriter binaryWriter2 = new BinaryWriter(fileStream))
                     {
                         binaryWriter2.Write(Encoding.ASCII.GetBytes("TMOD"));
                         binaryWriter2.Write(new Version(0, 10, 1, 4).ToString());
-                        binaryWriter2.Write(hash);
-                        binaryWriter2.Write(signature);
+                        binaryWriter2.Write(prop.hash);
+                        binaryWriter2.Write(prop.signature);
                         binaryWriter2.Write(array.Length);
                         binaryWriter2.Write(array);
                     }
@@ -246,7 +246,6 @@ namespace tModVS
 
     internal class ModCompile
     {
-        private static readonly string modCompileDir = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "ModCompile");
         private static readonly Regex buildIgnore = new Regex(
             @"^\.git\\|^\.vs\\|^build\.txt$|^build\.json|^\.gitattributes$|^\.gitignore$|^bin\\|^obj\\|\.cs$|\.csproj$|\.sln$|^Thumbs\.db$|^Exclude\\", RegexOptions.Compiled);
 
@@ -264,73 +263,54 @@ namespace tModVS
             @"C:\WINDOWS\Microsoft.Net\assembly\GAC_MSIL\WindowsBase\v4.0_4.0.0.0__31bf3856ad364e35\WindowsBase.dll"
         };
 
-        private static byte[] ReadIfExists(string path)
-        {
-            return File.Exists(path) ? File.ReadAllBytes(path) : null;
-        }
-
         internal static string ModProjectFolder;
         private static bool Build(TmodFile mod)
         {
             byte[] winDLL = null;
             byte[] monoDLL = null;
             byte[] winPDB = null;
-            //if (mod.properties.noCompile)
-            //{
-            //    winDLL = monoDLL = ReadIfExists(Path.Combine(mod.path, "All.dll"));
-            //    winPDB = ReadIfExists(Path.Combine(mod.path, "All.pdb"));
-            //
-            //    if (winDLL == null)
-            //    {
-            //        winDLL = ReadIfExists(Path.Combine(mod.path, "Windows.dll"));
-            //        monoDLL = ReadIfExists(Path.Combine(mod.path, "Mono.dll"));
-            //        winPDB = ReadIfExists(Path.Combine(mod.path, "Windows.pdb"));
-            //    }
-            //
-            //    if (winDLL == null || monoDLL == null)
-            //    {
-            //        ErrorLogger.LogDllBuildError(mod.path);
-            //        return false;
-            //    }
-            //}
-            //else
-            //{
             CompileMod(mod, true, ref winDLL, ref winPDB);
             if (winDLL == null)
+            {
                 return false;
-
-            CompileMod(mod, false, ref monoDLL, ref winPDB);//the pdb reference won't actually be written to
+            }
+            CompileMod(mod, false, ref monoDLL, ref winPDB);
             if (monoDLL == null)
+            {
                 return false;
-            //}
+            }
 
-            if (!VerifyName(mod.name, winDLL) || !VerifyName(mod.name, monoDLL))
+            if (!VerifyName(mod.prop.name, winDLL) || !VerifyName(mod.prop.name, monoDLL))
+            {
                 return false;
-
-
+            }
             mod.AddFile("Info", mod.GetInfo());
-
             if (Equal(winDLL, monoDLL))
             {
                 mod.AddFile("All.dll", winDLL);
-                if (winPDB != null) mod.AddFile("All.pdb", winPDB);
+                if (winPDB != null)
+                {
+                    mod.AddFile("All.pdb", winPDB);
+                }
             }
             else
             {
                 mod.AddFile("Windows.dll", winDLL);
                 mod.AddFile("Mono.dll", monoDLL);
-                if (winPDB != null) mod.AddFile("Windows.pdb", winPDB);
+                if (winPDB != null)
+                {
+                    mod.AddFile("Windows.pdb", winPDB);
+                }
             }
-
             foreach (var resource in Directory.GetFiles(ModProjectFolder, "*", SearchOption.AllDirectories))
             {
                 var relPath = resource.Substring(ModProjectFolder.Length + 1);
                 if (buildIgnore.IsMatch(relPath))
+                {
                     continue;
-
+                }
                 mod.AddResource(relPath, resource);
             }
-
             mod.Save();
             ActivateExceptionReporting();
             return true;
@@ -388,29 +368,32 @@ namespace tModVS
         private static bool Equal(byte[] a, byte[] b)
         {
             if (a.Length != b.Length)
+            {
                 return false;
+            }
 
             for (int i = 0; i < a.Length; i++)
+            {
                 if (a[i] != b[i])
+                {
                     return false;
-
+                }
+            }
             return true;
         }
 
-        private static void CompileMod(TmodFile mod, bool generatePDB,
-                ref byte[] dll, ref byte[] pdb)
+        private static void CompileMod(TmodFile mod, bool generatePDB, ref byte[] dll, ref byte[] pdb)
         {
-
             //collect all dll references
-            var tempDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), "My Games", "Terraria", "ModLoader", "compile_temp");
-            Directory.CreateDirectory(tempDir);
+            //var tempDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), "My Games", "Terraria", "ModLoader", "compile_temp");
+            //Directory.CreateDirectory(tempDir);
             var refs = new List<string>();
 
             //everything used to compile the tModLoader for the target platform
-            refs.AddRange(GetTerrariaReferences(tempDir, generatePDB));
+            refs.AddRange(GetTerrariaReferences(generatePDB));
 
             //libs added by the mod
-            refs.AddRange(mod.dllReferences.Select(refDll => Path.Combine(ModProjectFolder, "lib/" + refDll + ".dll")));
+            refs.AddRange(mod.prop.dllReferences.Select(refDll => Path.Combine(ModProjectFolder, "lib/" + refDll + ".dll")));
 
             //all dlls included in all referenced mods
             //foreach (var refMod in refMods)
@@ -445,8 +428,7 @@ namespace tModVS
             {
                 CompilerResults results;
                 {
-                    var options = new Dictionary<string, string> { { "CompilerVersion", "v7.0" } };
-                    results = new CSharpCodeProvider(options).CompileAssemblyFromFile(compileOptions, files);
+                    results = RoslynCompile(compileOptions, files);
                 }
 
                 if (results.Errors.HasErrors)
@@ -458,7 +440,9 @@ namespace tModVS
                 dll = File.ReadAllBytes(compileOptions.OutputAssembly);
                 dll = PostProcess(dll, generatePDB);
                 if (generatePDB)
+                {
                     pdb = File.ReadAllBytes(Path.Combine(tempDir, mod + ".pdb"));
+                }
             }
             finally
             {
@@ -479,62 +463,32 @@ namespace tModVS
             }
         }
 
-        private static IEnumerable<string> GetTerrariaReferences(string tempDir, bool forWindows)
+        private static IEnumerable<string> GetTerrariaReferences(bool forWindows)
         {
+            var mainModulePath = Path.Combine(ModProjectFolder, "References",
+                forWindows ? "tModLoaderWindows.exe" : "tModLoaderMac.exe");
             var refs = new List<string>(moduleReferences);
 
-            if (forWindows)
+            if (!forWindows)
             {
-                var terrariaModule = Assembly.GetExecutingAssembly();
-                refs.Add(terrariaModule.Location);
-
-                //extract embedded resource dlls
-                foreach (var resName in terrariaModule.GetManifestResourceNames().Where(n => n.EndsWith(".dll")))
-                {
-                    var path = Path.Combine(tempDir, Path.GetFileName(resName));
-                    using (Stream res = terrariaModule.GetManifestResourceStream(resName), file = File.Create(path))
-                        res.CopyTo(file);
-
-                    refs.Add(path);
-                }
-
-            }
-            else
-            {
-                //remove framework references
                 refs.RemoveAll(path =>
                 {
                     var name = Path.GetFileName(path);
                     return name == "FNA.dll" || name.StartsWith("Microsoft.Xna.Framework");
                 });
-                //replace with ModCompile contents
-                var mainModulePath = Path.Combine(modCompileDir, forWindows ? "tModLoaderWindows.exe" : "tModLoaderMac.exe");
-                refs.Add(mainModulePath);
+                refs.Add(Path.Combine(ModProjectFolder, "References", "FNA.dll"));
+            }
 
-                var frameworkNames = forWindows
-                    ? new[]
-                    {
-                        "Microsoft.Xna.Framework.dll",
-                        "Microsoft.Xna.Framework.Game.dll",
-                        "Microsoft.Xna.Framework.Graphics.dll",
-                        "Microsoft.Xna.Framework.Xact.dll"
-                    }
-                    : new[]
-                    {
-                        "FNA.dll"
-                    };
-                refs.AddRange(frameworkNames.Select(f => Path.Combine(modCompileDir, f)));
-
-                //extract embedded resource dlls
-                var asm = AssemblyDefinition.ReadAssembly(mainModulePath);
-                foreach (var res in asm.MainModule.Resources.OfType<EmbeddedResource>().Where(res => res.Name.EndsWith(".dll")))
+            refs.Add(mainModulePath);
+            var asm = AssemblyDefinition.ReadAssembly(mainModulePath);
+            foreach (var res in asm.MainModule.Resources.OfType<EmbeddedResource>().Where(res => res.Name.EndsWith(".dll")))
+            {
+                var path = Path.Combine(ModProjectFolder, "References", "Embedded", Path.GetFileName(res.Name));
+                using (Stream s = res.GetResourceStream(), file = File.Create(path))
                 {
-                    var path = Path.Combine(tempDir, Path.GetFileName(res.Name));
-                    using (Stream s = res.GetResourceStream(), file = File.Create(path))
-                        s.CopyTo(file);
-
-                    refs.Add(path);
+                    s.CopyTo(file);
                 }
+                refs.Add(path);
             }
 
             return refs;
@@ -545,14 +499,10 @@ namespace tModVS
         /// </summary>
         private static CompilerResults RoslynCompile(CompilerParameters compileOptions, string[] files)
         {
-            var terrariaDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var modCompileDir = Path.Combine(terrariaDir, "ModCompile");
-            var asm = Assembly.LoadFile(Path.Combine(modCompileDir, "RoslynWrapper.dll"));
-
             AppDomain.CurrentDomain.AssemblyResolve += (o, args) =>
             {
                 var name = new AssemblyName(args.Name).Name;
-                var f = Path.Combine(modCompileDir, name + ".dll");
+                var f = Path.Combine(ModProjectFolder, "References", name + ".dll");
                 return File.Exists(f) ? Assembly.LoadFile(f) : null;
             };
 

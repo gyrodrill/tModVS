@@ -1,8 +1,10 @@
 ﻿using System;
 using System.ComponentModel.Design;
 using System.Globalization;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using EnvDTE;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Task = System.Threading.Tasks.Task;
@@ -76,9 +78,11 @@ namespace tModVS
             ThreadHelper.ThrowIfNotOnUIThread();
 
             OleMenuCommandService commandService = await package.GetServiceAsync((typeof(IMenuCommandService))) as OleMenuCommandService;
+            whatitis = await package.GetServiceAsync(typeof(DTE)) as DTE;
             Instance = new tModBuild(package, commandService);
         }
 
+        private static DTE whatitis = null;
         /// <summary>
         /// This function is the callback used to execute the command when the menu item is clicked.
         /// See the constructor to see how the menu item is associated with this function using
@@ -89,17 +93,29 @@ namespace tModVS
         private void Execute(object sender, EventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            string message = string.Format(CultureInfo.CurrentCulture, "Inside {0}.MenuItemCallback()", this.GetType().FullName);
-            string title = "tModBuild";
+            var dte = (Package.GetGlobalService(typeof(SDTE)) as DTE);
+            bool cn = dte.LocaleID == 2052;
+            var p = dte.ActiveSolutionProjects as Array;
+            if (p.Length < 1)
+            {
+                VsShellUtilities.ShowMessageBox(this.package, cn ? "请打开一个解决方案或项目后使用。" : "Open a solution or project before build tMod.",
+                    "tModVS", OLEMSGICON.OLEMSGICON_INFO, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+            }
 
+            ModCompile.ModProjectFolder = Path.GetDirectoryName((p.GetValue(0) as Project).FullName);
+
+            // string message = string.Format(CultureInfo.CurrentCulture, "Inside {0}.MenuItemCallback()", this.GetType().FullName);
+            // string title = "tModBuild";
+            // 
             // Show a message box to prove we were here
-            VsShellUtilities.ShowMessageBox(
-                this.package,
-                message,
-                title,
-                OLEMSGICON.OLEMSGICON_INFO,
-                OLEMSGBUTTON.OLEMSGBUTTON_OK,
-                OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+            // VsShellUtilities.ShowMessageBox(
+            //     this.package,
+            //     message,
+            //     title,
+            //     OLEMSGICON.OLEMSGICON_INFO,
+            //     OLEMSGBUTTON.OLEMSGBUTTON_OK,
+            //     OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
         }
     }
 }

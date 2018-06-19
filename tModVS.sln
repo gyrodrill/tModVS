@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EmptyMod", "EmptyMod\EmptyM
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "tModVS", "tModVS\tModVS.csproj", "{B8CDE311-11A5-4A8F-8E78-FC7124F388F3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "tModReader", "tModReader\tModReader.csproj", "{28D63DF0-EB05-40BB-B13F-971ADAE4FED6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -19,6 +21,10 @@ Global
 		{B8CDE311-11A5-4A8F-8E78-FC7124F388F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B8CDE311-11A5-4A8F-8E78-FC7124F388F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B8CDE311-11A5-4A8F-8E78-FC7124F388F3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{28D63DF0-EB05-40BB-B13F-971ADAE4FED6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{28D63DF0-EB05-40BB-B13F-971ADAE4FED6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{28D63DF0-EB05-40BB-B13F-971ADAE4FED6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{28D63DF0-EB05-40BB-B13F-971ADAE4FED6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
