@@ -69,14 +69,24 @@
   <ItemGroup>
     <Content Include="build.txt" />
     <Content Include="description.txt" />
+    <Content Include="References\FNA.dll" />
+    <Content Include="References\Microsoft.CodeAnalysis.CSharp.dll" />
+    <Content Include="References\Microsoft.CodeAnalysis.dll" />
+    <Content Include="References\Mono.Cecil.Pdb.dll" />
+    <Content Include="References\RoslynWrapper.dll" />
+    <Content Include="References\System.Reflection.Metadata.dll" />
+    <Content Include="References\tModLoaderMac.exe" />
+    <Content Include="References\tModLoaderWindows.exe" />
   </ItemGroup>
   <ItemGroup>
     <None Include="build.json" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="References\Embedded\" />
+    <Folder Include="tModRef\" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSHARP.Targets" />
-  <ProjectExtensions>
-    <VisualStudio AllowExistingFolder="true" />
-  </ProjectExtensions>
+  <ProjectExtensions />
   <PropertyGroup>
     <PostBuildEvent>for /f "tokens=* delims=" %25%25i in ('"$(ProjectDir)..\setup\bin\setup" --steamdir') do set TERRARIASTEAMDIR=%25%25i
 "%25TERRARIASTEAMDIR%25\tModLoaderServerDebug.exe" -build "$(ProjectDir)\" -eac "$(TargetPath)"</PostBuildEvent>

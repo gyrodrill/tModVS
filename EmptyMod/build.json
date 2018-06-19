@@ -1,10 +1,25 @@
 ﻿{
   "author": "Gyrodrill",
-  "version": "0.0.0.1",
+  "description": "A empty mod template",
   "displayName": "Empty Mod",
-  "homepage": "https//gyrodrill.github.io/tMod",
+  // 引用的dll，会被放在lib文件夹里
+  "dllReferences": [],
+  // 编辑继续，调试用的
+  "editAndContinue": false,
   "hideCode": true,
   "hideResources": true,
+  "homepage": "https//gyrodrill.github.io/tMod",
   "includeSource": false,
-  "includePDB": true
+  // 引用的Mod
+  "modReferences": [],
+  // 内部名称
+  "name": "EmptyModInternalName",
+  // 是否在玩家/服务器端加载。0 1 2 3分别为双方/玩家/服务器/不同步
+  "side": 0,
+  "sortAfter": [],
+  "sortBefore": [],
+  "tModLoaderVersion": "0.10.1.4",
+  "version": "0.0.0.1",
+  "weakReferences": [],
+  "compileoption": "/optimize"
 }

@@ -4,6 +4,7 @@ using Mono.Cecil;
 using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -15,18 +16,22 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
+using Microsoft.CodeAnalysis.Text;
+using Newtonsoft.Json;
 using AssemblyHashAlgorithm = Mono.Cecil.AssemblyHashAlgorithm;
 
 namespace tModVS
 {
     internal class TmodProp
     {
-        public Version tModLoaderVersion;
+        public Version tModLoaderVersion = new Version(0, 10, 1, 4);
         public string name;
         public string author;
         public Version version;
-        public byte[] hash;
-        public byte[] signature = new byte[256];
         public string[] dllReferences;
         public string[] modReferences;
         public string[] weakReferences;
@@ -35,14 +40,17 @@ namespace tModVS
         public string displayName;
         public string homepage;
         public string description;
-        public bool includePDB;
+        public bool includePDB = true;
         public bool editAndContinue;
         public byte side = 0;
+        public string compileoption;
     }
     internal class TmodFile
     {
         public Dictionary<string, byte[]> files = new Dictionary<string, byte[]>();
         public TmodProp prop;
+        public byte[] hash;
+        public byte[] signature = new byte[256];
         internal void AddFile(string fileName, byte[] data)
         {
             this.files[fileName.Replace('\\', '/')] = data;
@@ -154,7 +162,6 @@ namespace tModVS
                 return memoryStream.ToArray();
             }
         }
-
         internal void AddResource(string relPath, string filePath)
         {
             if (relPath.EndsWith(".png") && relPath != "icon.png")
@@ -226,30 +233,28 @@ namespace tModVS
                     }
                 }
                 byte[] array = memoryStream.ToArray();
-                prop.hash = SHA1.Create().ComputeHash(array);
+                hash = SHA1.Create().ComputeHash(array);
                 using (FileStream fileStream = File.Create(Path.Combine(ModCompile.ModProjectFolder, "build.tmod")))
                 {
                     using (BinaryWriter binaryWriter2 = new BinaryWriter(fileStream))
                     {
                         binaryWriter2.Write(Encoding.ASCII.GetBytes("TMOD"));
-                        binaryWriter2.Write(new Version(0, 10, 1, 4).ToString());
-                        binaryWriter2.Write(prop.hash);
-                        binaryWriter2.Write(prop.signature);
+                        binaryWriter2.Write(prop.tModLoaderVersion.ToString());
+                        binaryWriter2.Write(hash);
+                        binaryWriter2.Write(signature);
                         binaryWriter2.Write(array.Length);
                         binaryWriter2.Write(array);
                     }
                 }
             }
         }
-
     }
-
     internal class ModCompile
     {
         private static readonly Regex buildIgnore = new Regex(
             @"^\.git\\|^\.vs\\|^build\.txt$|^build\.json|^\.gitattributes$|^\.gitignore$|^bin\\|^obj\\|\.cs$|\.csproj$|\.sln$|^Thumbs\.db$|^Exclude\\", RegexOptions.Compiled);
 
-        private static string[] moduleReferences =
+        private static readonly string[] moduleReferences =
         {
             @"C:\Windows\Microsoft.NET\Framework\v4.0.30319\mscorlib.dll",
             @"C:\WINDOWS\Microsoft.Net\assembly\GAC_MSIL\System.Core\v4.0_4.0.0.0__b77a5c561934e089\System.Core.dll",
@@ -262,26 +267,30 @@ namespace tModVS
             @"C:\WINDOWS\Microsoft.Net\assembly\GAC_MSIL\System.Drawing\v4.0_4.0.0.0__b03f5f7f11d50a3a\System.Drawing.dll",
             @"C:\WINDOWS\Microsoft.Net\assembly\GAC_MSIL\WindowsBase\v4.0_4.0.0.0__31bf3856ad364e35\WindowsBase.dll"
         };
-
         internal static string ModProjectFolder;
-        private static bool Build(TmodFile mod)
+        internal static bool Build()
         {
             byte[] winDLL = null;
             byte[] monoDLL = null;
             byte[] winPDB = null;
-            CompileMod(mod, true, ref winDLL, ref winPDB);
+            TmodFile mod = new TmodFile();
+            mod.prop = JsonConvert.DeserializeObject<TmodProp>(
+                File.ReadAllText(Path.Combine(ModProjectFolder, "build.json")));
+            CompileMod(mod.prop, true, ref winDLL, ref winPDB);
             if (winDLL == null)
             {
+                Debug.WriteLine("Win dll == null");
                 return false;
             }
-            CompileMod(mod, false, ref monoDLL, ref winPDB);
+            CompileMod(mod.prop, false, ref monoDLL, ref winPDB);
             if (monoDLL == null)
             {
+                Debug.WriteLine("Mono dll == null");
                 return false;
             }
-
             if (!VerifyName(mod.prop.name, winDLL) || !VerifyName(mod.prop.name, monoDLL))
             {
+                Debug.WriteLine("Verify name fail");
                 return false;
             }
             mod.AddFile("Info", mod.GetInfo());
@@ -315,7 +324,6 @@ namespace tModVS
             ActivateExceptionReporting();
             return true;
         }
-
         private static bool exceptionReportingActive;
         internal static void ActivateExceptionReporting()
         {
@@ -323,12 +331,18 @@ namespace tModVS
             exceptionReportingActive = true;
             AppDomain.CurrentDomain.FirstChanceException += delegate (object sender, FirstChanceExceptionEventArgs exceptionArgs)
             {
-                if (exceptionArgs.Exception.Source == "MP3Sharp") return;
-                if (exceptionArgs.Exception.TargetSite.Name.StartsWith("doColors_Mode")) return;
+                if (exceptionArgs.Exception.Source == "MP3Sharp")
+                {
+                    return;
+                }
+                if (exceptionArgs.Exception.TargetSite.Name.StartsWith("doColors_Mode"))
+                {
+                    return;
+                }
                 var stack = new System.Diagnostics.StackTrace(true);
+                Debug.WriteLine(stack);
             };
         }
-
         private static bool VerifyName(string modName, byte[] dll)
         {
             var asmDef = AssemblyDefinition.ReadAssembly(new MemoryStream(dll));
@@ -364,7 +378,6 @@ namespace tModVS
 
             return true;
         }
-
         private static bool Equal(byte[] a, byte[] b)
         {
             if (a.Length != b.Length)
@@ -381,19 +394,18 @@ namespace tModVS
             }
             return true;
         }
-
-        private static void CompileMod(TmodFile mod, bool generatePDB, ref byte[] dll, ref byte[] pdb)
+        private static void CompileMod(TmodProp prop, bool win, ref byte[] dll, ref byte[] pdb)
         {
             //collect all dll references
-            //var tempDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), "My Games", "Terraria", "ModLoader", "compile_temp");
-            //Directory.CreateDirectory(tempDir);
+            var tempDir = Path.Combine(ModProjectFolder, "compile_temp");
+            Directory.CreateDirectory(tempDir);
             var refs = new List<string>();
 
             //everything used to compile the tModLoader for the target platform
-            refs.AddRange(GetTerrariaReferences(generatePDB));
+            refs.AddRange(GetTerrariaReferences(win));
 
             //libs added by the mod
-            refs.AddRange(mod.prop.dllReferences.Select(refDll => Path.Combine(ModProjectFolder, "lib/" + refDll + ".dll")));
+            refs.AddRange(prop.dllReferences.Select(refDll => Path.Combine(ModProjectFolder, refDll)));
 
             //all dlls included in all referenced mods
             //foreach (var refMod in refMods)
@@ -412,12 +424,12 @@ namespace tModVS
 
             var compileOptions = new CompilerParameters
             {
-                OutputAssembly = Path.Combine(tempDir, mod + ".dll"),
+                OutputAssembly = Path.Combine(tempDir, "build.dll"),
                 GenerateExecutable = false,
                 GenerateInMemory = false,
                 TempFiles = new TempFileCollection(tempDir, true),
-                IncludeDebugInformation = generatePDB,
-                CompilerOptions = "/optimize"
+                IncludeDebugInformation = true,
+                CompilerOptions = prop.compileoption
             };
 
             compileOptions.ReferencedAssemblies.AddRange(refs.ToArray());
@@ -426,10 +438,7 @@ namespace tModVS
 
             try
             {
-                CompilerResults results;
-                {
-                    results = RoslynCompile(compileOptions, files);
-                }
+                var results = RoslynCompile(compileOptions, files);
 
                 if (results.Errors.HasErrors)
                 {
@@ -438,10 +447,10 @@ namespace tModVS
                 }
 
                 dll = File.ReadAllBytes(compileOptions.OutputAssembly);
-                dll = PostProcess(dll, generatePDB);
-                if (generatePDB)
+                dll = PostProcess(dll, win);
+                if (win)
                 {
-                    pdb = File.ReadAllBytes(Path.Combine(tempDir, mod + ".pdb"));
+                    pdb = File.ReadAllBytes(Path.Combine(tempDir, "build.pdb"));
                 }
             }
             finally
@@ -462,7 +471,6 @@ namespace tModVS
                 }
             }
         }
-
         private static IEnumerable<string> GetTerrariaReferences(bool forWindows)
         {
             var mainModulePath = Path.Combine(ModProjectFolder, "References",
@@ -493,7 +501,27 @@ namespace tModVS
 
             return refs;
         }
-
+        public static CompilerResults Compile(CompilerParameters args, string[] files)
+        {
+            string name = Path.GetFileNameWithoutExtension(args.OutputAssembly);
+            CSharpCompilationOptions options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, null, null, null, null, OptimizationLevel.Debug, false, false, null, null, default(ImmutableArray<byte>), null, Platform.AnyCpu, ReportDiagnostic.Default, 4, null, true, false, null, null, null, null, null).WithOptimizationLevel(args.IncludeDebugInformation ? OptimizationLevel.Debug : OptimizationLevel.Release).WithAssemblyIdentityComparer(DesktopAssemblyIdentityComparer.Default);
+            IEnumerable<PortableExecutableReference> references = from string s in args.ReferencedAssemblies
+                                                                  select MetadataReference.CreateFromFile(s);
+            IEnumerable<SyntaxTree> syntaxTrees = from f in files
+                                                  select SyntaxFactory.ParseSyntaxTree(File.ReadAllText(f), null, f, Encoding.UTF8);
+            EmitResult emitResult = CSharpCompilation.Create(name, syntaxTrees, references, options).Emit(args.OutputAssembly, args.IncludeDebugInformation ? Path.ChangeExtension(args.OutputAssembly, "pdb") : null, null, null, null);
+            CompilerResults compilerResults = new CompilerResults(args.TempFiles);
+            foreach (Diagnostic diagnostic in emitResult.Diagnostics)
+            {
+                if (diagnostic.Severity == DiagnosticSeverity.Error)
+                {
+                    FileLinePositionSpan lineSpan = diagnostic.Location.GetLineSpan();
+                    LinePosition startLinePosition = lineSpan.StartLinePosition;
+                    compilerResults.Errors.Add(new CompilerError(lineSpan.Path, startLinePosition.Line, startLinePosition.Character, diagnostic.Id, diagnostic.GetMessage(null)));
+                }
+            }
+            return compilerResults;
+        }
         /// <summary>
         /// Invoke the Roslyn compiler via reflection to avoid a .NET 4.5 dependency
         /// </summary>
@@ -506,37 +534,21 @@ namespace tModVS
                 return File.Exists(f) ? Assembly.LoadFile(f) : null;
             };
 
-            var res = (CompilerResults)asm.GetType("Terraria.ModLoader.RoslynWrapper").GetMethod("Compile")
-                .Invoke(null, new object[] { compileOptions, files });
+            var res = Compile(compileOptions, files);
 
             if (!res.Errors.HasErrors && compileOptions.IncludeDebugInformation)
-                asm.GetType("Terraria.ModLoader.RoslynPdbFixer").GetMethod("Fix")
-                    .Invoke(null, new object[] { compileOptions.OutputAssembly });
-
+            {
+                AssemblyDefinition assemblyDefinition = AssemblyDefinition.ReadAssembly(compileOptions.OutputAssembly);
+                assemblyDefinition.MainModule.ReadSymbols();
+                FileStream fileStream = File.Create(compileOptions.OutputAssembly);
+                assemblyDefinition.Write(fileStream, new WriterParameters
+                {
+                    WriteSymbols = true
+                });
+                fileStream.Close();
+            }
             return res;
         }
-
-        private static FileStream AcquireConsoleBuildLock()
-        {
-            var path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "/ModCompile/buildlock";
-            bool first = true;
-            while (true)
-            {
-                try
-                {
-                    return new FileStream(path, FileMode.OpenOrCreate);
-                }
-                catch (IOException)
-                {
-                    if (first)
-                    {
-                        Console.WriteLine("Waiting for other builds to complete");
-                        first = false;
-                    }
-                }
-            }
-        }
-
         private static AssemblyNameReference GetOrAddSystemCore(ModuleDefinition module)
         {
             var assemblyRef = module.AssemblyReferences.SingleOrDefault(r => r.Name == "System.Core");
@@ -554,23 +566,31 @@ namespace tModVS
             }
             return assemblyRef;
         }
-
         private static byte[] PostProcess(byte[] dll, bool forWindows)
         {
             if (forWindows)
+            {
                 return dll;
+            }
 
             var asm = AssemblyDefinition.ReadAssembly(new MemoryStream(dll));
-
-            // Extension methods are marked with an attribute which is located in mscorlib on .NET but in System.Core on Mono
-            // Find all extension attributes and change their assembly references
             AssemblyNameReference SystemCoreRef = null;
             foreach (var module in asm.Modules)
+            {
                 foreach (var type in module.Types)
+                {
                     foreach (var met in type.Methods)
+                    {
                         foreach (var attr in met.CustomAttributes)
+                        {
                             if (attr.AttributeType.FullName == "System.Runtime.CompilerServices.ExtensionAttribute")
+                            {
                                 attr.AttributeType.Scope = SystemCoreRef ?? (SystemCoreRef = GetOrAddSystemCore(module));
+                            }
+                        }
+                    }
+                }
+            }
 
             var ret = new MemoryStream();
             asm.Write(ret);

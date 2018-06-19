@@ -104,7 +104,7 @@ namespace tModVS
             }
 
             ModCompile.ModProjectFolder = Path.GetDirectoryName((p.GetValue(0) as Project).FullName);
-
+            ModCompile.Build();
             // string message = string.Format(CultureInfo.CurrentCulture, "Inside {0}.MenuItemCallback()", this.GetType().FullName);
             // string title = "tModBuild";
             // 
