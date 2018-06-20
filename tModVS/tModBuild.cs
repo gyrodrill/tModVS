@@ -1,12 +1,16 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.Design;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EnvDTE;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using VSLangProj;
 using Task = System.Threading.Tasks.Task;
 
 namespace tModVS
@@ -29,7 +33,7 @@ namespace tModVS
         /// <summary>
         /// VS Package that provides this command, not null.
         /// </summary>
-        private readonly AsyncPackage package;
+        internal readonly AsyncPackage package;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="tModBuild"/> class.
@@ -104,6 +108,12 @@ namespace tModVS
             }
 
             ModCompile.ModProjectFolder = Path.GetDirectoryName((p.GetValue(0) as Project).FullName);
+            var p2 = ((VSProject) (p.GetValue(0) as Project).Object).References;
+            ModCompile.refItems.Clear();
+            foreach (var refitem in p2)
+            {
+                ModCompile.refItems.Add((string) ((dynamic)refitem).Identity);
+            }
             ModCompile.Build();
             // string message = string.Format(CultureInfo.CurrentCulture, "Inside {0}.MenuItemCallback()", this.GetType().FullName);
             // string title = "tModBuild";

@@ -67,14 +67,10 @@
     <Compile Include="Walls\ExampleWall.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="build.txt" />
-    <Content Include="description.txt" />
     <Content Include="References\FNA.dll" />
     <Content Include="References\Microsoft.CodeAnalysis.CSharp.dll" />
     <Content Include="References\Microsoft.CodeAnalysis.dll" />
-    <Content Include="References\Mono.Cecil.Pdb.dll" />
     <Content Include="References\RoslynWrapper.dll" />
-    <Content Include="References\System.Reflection.Metadata.dll" />
     <Content Include="References\tModLoaderMac.exe" />
     <Content Include="References\tModLoaderWindows.exe" />
   </ItemGroup>

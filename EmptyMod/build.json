@@ -1,9 +1,7 @@
 ﻿{
   "author": "Gyrodrill",
-  "description": "A empty mod template",
+  "description": "A empty mod template, with nothing inside.",
   "displayName": "Empty Mod",
-  // 引用的dll，会被放在lib文件夹里
-  "dllReferences": [],
   // 编辑继续，调试用的
   "editAndContinue": false,
   "hideCode": true,
