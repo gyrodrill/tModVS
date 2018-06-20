@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using EnvDTE;
@@ -82,11 +83,10 @@ namespace tModVS
             ThreadHelper.ThrowIfNotOnUIThread();
 
             OleMenuCommandService commandService = await package.GetServiceAsync((typeof(IMenuCommandService))) as OleMenuCommandService;
-            whatitis = await package.GetServiceAsync(typeof(DTE)) as DTE;
             Instance = new tModBuild(package, commandService);
         }
 
-        private static DTE whatitis = null;
+        private static bool InitAR = false;
         /// <summary>
         /// This function is the callback used to execute the command when the menu item is clicked.
         /// See the constructor to see how the menu item is associated with this function using
@@ -106,13 +106,36 @@ namespace tModVS
                     "tModVS", OLEMSGICON.OLEMSGICON_INFO, OLEMSGBUTTON.OLEMSGBUTTON_OK,
                     OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
             }
-
             ModCompile.ModProjectFolder = Path.GetDirectoryName((p.GetValue(0) as Project).FullName);
-            var p2 = ((VSProject) (p.GetValue(0) as Project).Object).References;
+            if (!InitAR)
+            {
+                AppDomain.CurrentDomain.AssemblyResolve += (o, args) =>
+                {
+                    //VsShellUtilities.ShowMessageBox(tModBuild.Instance.package, $"{o}\r\n{args}",
+                    //    "tModVS", OLEMSGICON.OLEMSGICON_INFO, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    //    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+                    var name = new AssemblyName(args.Name).Name + ".dll";
+                    string text = Array.Find(typeof(ModCompile).Assembly.GetManifestResourceNames(),
+                        (element) => element.EndsWith(name));
+                    if (text != null)
+                    {
+                        using (Stream manifestResourceStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(text))
+                        {
+                            byte[] array = new byte[manifestResourceStream.Length];
+                            manifestResourceStream.Read(array, 0, array.Length);
+                            return Assembly.Load(array);
+                        }
+                    }
+                    var f = Path.Combine(ModCompile.ModProjectFolder, "References", name);
+                    return File.Exists(f) ? Assembly.LoadFile(f) : null;
+                };
+                InitAR = true;
+            }
+            var p2 = ((VSProject)(p.GetValue(0) as Project).Object).References;
             ModCompile.refItems.Clear();
             foreach (var refitem in p2)
             {
-                ModCompile.refItems.Add((string) ((dynamic)refitem).Identity);
+                ModCompile.refItems.Add((string)((dynamic)refitem).Path);
             }
             ModCompile.Build();
             // string message = string.Format(CultureInfo.CurrentCulture, "Inside {0}.MenuItemCallback()", this.GetType().FullName);

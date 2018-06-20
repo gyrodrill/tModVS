@@ -67,10 +67,7 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
-    <Content Include="Newtonsoft.Json.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <IncludeInVSIX>true</IncludeInVSIX>
-    </Content>
+    <EmbeddedResource Include="Ref\Newtonsoft.Json.dll" />
     <EmbeddedResource Include="Ref\dnlib.dll" />
     <Content Include="zh-cn\Extension.vsixlangpack">
       <IncludeInVSIX>true</IncludeInVSIX>

@@ -10,8 +10,8 @@
   "includeSource": false,
   // 引用的Mod
   "modReferences": [],
-  // 内部名称
-  "name": "EmptyModInternalName",
+  // 内部名称，应和public class xxxx : Mod的命名空间的第一段相同
+  "name": "ExampleMod",
   // 是否在玩家/服务器端加载。0 1 2 3分别为双方/玩家/服务器/不同步
   "side": 0,
   "sortAfter": [],

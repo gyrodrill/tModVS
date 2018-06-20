@@ -343,7 +343,7 @@ namespace tModVS
 
             if (modName.Equals("Terraria", StringComparison.InvariantCultureIgnoreCase))
             {
-                Debug.WriteLine(("tModLoader.BuildErrorModNamedTerraria"));
+                Debug.WriteLine("tModLoader.BuildErrorModNamedTerraria");
                 return false;
             }
 
@@ -354,13 +354,13 @@ namespace tModVS
                 string topNamespace = modClassType.Namespace.String.Split('.')[0];
                 if (topNamespace != modName)
                 {
-                    Debug.WriteLine(("tModLoader.BuildErrorNamespaceFolderDontMatch"));
+                    Debug.WriteLine("tModLoader.BuildErrorNamespaceFolderDontMatch");
                     return false;
                 }
             }
             catch
             {
-                Debug.WriteLine(("tModLoader.BuildErrorNoModClass"));
+                Debug.WriteLine("tModLoader.BuildErrorNoModClass");
                 return false;
             }
 
@@ -407,28 +407,30 @@ namespace tModVS
 
             var compileOptions = new CompilerParameters
             {
-                OutputAssembly = Path.Combine(tempDir, "build.dll"),
+                OutputAssembly = Path.Combine(tempDir, prop.name + ".dll"),
                 GenerateExecutable = false,
                 GenerateInMemory = false,
                 TempFiles = new TempFileCollection(tempDir, true),
                 IncludeDebugInformation = true,
                 CompilerOptions = prop.compileoption
             };
-
-            compileOptions.ReferencedAssemblies.AddRange(GetTerrariaReferences(win));
+            GetTerrariaReferences(win);
+            compileOptions.ReferencedAssemblies.AddRange(refItems.ToArray());
             var files = Directory.GetFiles(ModProjectFolder, "*.cs", SearchOption.AllDirectories)
                 .Where(f => !f.StartsWith("_")).ToArray();
 
             try
             {
-                var (results, dat) = RoslynCompile(compileOptions, files);
+                var (results, dat) = Compile(compileOptions, files);
 
                 if (results.Errors.HasErrors)
                 {
                     Debug.WriteLine("Compile Error: " + results.Errors[0]);
                     return;
                 }
-                
+                // FIXME: move AsmRef of ExtensionAttribute to System.Core.dll for Mono
+                // But why...
+                // Using dnlib to avoid Pdb problem but I can not change Scope...
                 dll = PostProcess(dat, win);
             }
             finally
@@ -449,28 +451,27 @@ namespace tModVS
                 }
             }
         }
-        private static string[] GetTerrariaReferences(bool forWindows)
+        private static void GetTerrariaReferences(bool forWindows)
         {
             var mainModulePath = Path.Combine(ModProjectFolder, "References",
                 forWindows ? "tModLoaderWindows.exe" : "tModLoaderMac.exe");
-            var refs = new List<string>(moduleReferences);
-            refs.AddRange(refItems);
-            refs.RemoveAll(path =>
+            refItems.AddRange(moduleReferences);
+            refItems.RemoveAll(path =>
             {
                 var name = Path.GetFileNameWithoutExtension(path);
                 return name == "Terraria" || name.StartsWith("tModLoader");
             });
             if (!forWindows)
             {
-                refs.RemoveAll(path =>
+                refItems.RemoveAll(path =>
                 {
                     var name = Path.GetFileName(path);
                     return name == "FNA.dll" || name.StartsWith("Microsoft.Xna.Framework");
                 });
-                refs.Add(Path.Combine(ModProjectFolder, "References", "FNA.dll"));
+                refItems.Add(Path.Combine(ModProjectFolder, "References", "FNA.dll"));
             }
 
-            refs.Add(mainModulePath);
+            refItems.Add(mainModulePath);
             var asm = AssemblyDef.Load(mainModulePath);
             foreach (var res in asm.ManifestModule.Resources.OfType<EmbeddedResource>().Where(res => res.Name.EndsWith(".dll")))
             {
@@ -479,20 +480,19 @@ namespace tModVS
                 {
                     s.CopyTo(file);
                 }
-                refs.Add(path);
+                refItems.Add(path);
             }
-
-            return refs.ToArray();
         }
-        public static CompilerResults Compile(CompilerParameters args, string[] files)
+        public static (CompilerResults, byte[]) Compile(CompilerParameters args, string[] files)
         {
             string name = Path.GetFileNameWithoutExtension(args.OutputAssembly);
-            CSharpCompilationOptions options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, null, null, null, null, OptimizationLevel.Debug, false, false, null, null, default(ImmutableArray<byte>), null, Platform.AnyCpu, ReportDiagnostic.Default, 4, null, true, false, null, null, null, null, null).WithOptimizationLevel(args.IncludeDebugInformation ? OptimizationLevel.Debug : OptimizationLevel.Release).WithAssemblyIdentityComparer(DesktopAssemblyIdentityComparer.Default);
+            CSharpCompilationOptions options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, null, null, null, null, OptimizationLevel.Debug, false, false, null, null, default(ImmutableArray<byte>), null, Platform.AnyCpu, ReportDiagnostic.Default, 4, null, true, false, null, null, null, null, null).WithOptimizationLevel(OptimizationLevel.Debug).WithAssemblyIdentityComparer(DesktopAssemblyIdentityComparer.Default);
             IEnumerable<PortableExecutableReference> references = from string s in args.ReferencedAssemblies
                                                                   select MetadataReference.CreateFromFile(s);
             IEnumerable<SyntaxTree> syntaxTrees = from f in files
                                                   select SyntaxFactory.ParseSyntaxTree(File.ReadAllText(f), null, f, Encoding.UTF8);
-            EmitResult emitResult = CSharpCompilation.Create(name, syntaxTrees, references, options).Emit(args.OutputAssembly, args.IncludeDebugInformation ? Path.ChangeExtension(args.OutputAssembly, "pdb") : null, null, null, null);
+            MemoryStream ms = new MemoryStream();
+            EmitResult emitResult = CSharpCompilation.Create(name, syntaxTrees, references, options).Emit(ms);
             CompilerResults compilerResults = new CompilerResults(args.TempFiles);
             foreach (Diagnostic diagnostic in emitResult.Diagnostics)
             {
@@ -503,33 +503,7 @@ namespace tModVS
                     compilerResults.Errors.Add(new CompilerError(lineSpan.Path, startLinePosition.Line, startLinePosition.Character, diagnostic.Id, diagnostic.GetMessage(null)));
                 }
             }
-            return compilerResults;
-        }
-        private static (CompilerResults, byte[]) RoslynCompile(CompilerParameters compileOptions, string[] files)
-        {
-            AppDomain.CurrentDomain.AssemblyResolve += (o, args) =>
-            {
-                //VsShellUtilities.ShowMessageBox(tModBuild.Instance.package, $"{o}\r\n{args}",
-                //    "tModVS", OLEMSGICON.OLEMSGICON_INFO, OLEMSGBUTTON.OLEMSGBUTTON_OK,
-                //    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
-                var name = new AssemblyName(args.Name).Name + ".dll";
-                string text = Array.Find(typeof(ModCompile).Assembly.GetManifestResourceNames(),
-                    (element) => element.EndsWith(name));
-                if (text != null)
-                {
-                    using (Stream manifestResourceStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(text))
-                    {
-                        byte[] array = new byte[manifestResourceStream.Length];
-                        manifestResourceStream.Read(array, 0, array.Length);
-                        return Assembly.Load(array);
-                    }
-                }
-                var f = Path.Combine(ModProjectFolder, "References", name);
-                return File.Exists(f) ? Assembly.LoadFile(f) : null;
-            };
-
-            var res = Compile(compileOptions, files);
-            return (res, File.ReadAllBytes(compileOptions.OutputAssembly));
+            return (compilerResults, ms.ToArray());
         }
         //private static AssemblyNameReference GetOrAddSystemCore(AssemblyDef asm)
         //{
