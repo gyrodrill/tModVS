@@ -10,27 +10,27 @@ namespace ExampleMod.Dusts
         public override bool Autoload(ref string name, ref string texture)
         {
 
-            throw new NotImplementedException("¼ÓÔØÊ±´úÂë");
+            throw new NotImplementedException("åŠ è½½æ—¶ä»£ç ");
         }
         public override Color? GetAlpha(Dust dust, Color lightColor)
         {
-            throw new NotImplementedException("Í¸Ã÷¶È");
+            throw new NotImplementedException("é€æ˜åº¦");
         }
         public override bool MidUpdate(Dust dust)
         {
-            throw new NotImplementedException("¶îÍâĞĞ¶¯");
+            throw new NotImplementedException("é¢å¤–è¡ŒåŠ¨");
         }
         public override void OnSpawn(Dust dust)
         {
-            throw new NotImplementedException("Ë¢ĞÂÊ±´úÂë");
+            throw new NotImplementedException("åˆ·æ–°æ—¶ä»£ç ");
         }
         public override void SetDefaults()
         {
-            throw new NotImplementedException("³õÊ¼»¯");
+            throw new NotImplementedException("åˆå§‹åŒ–");
         }
         public override bool Update(Dust dust)
         {
-            throw new NotImplementedException("¸üĞÂÊ±´úÂë");
+            throw new NotImplementedException("æ›´æ–°æ—¶ä»£ç ");
         }
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using Terraria.Graphics;
 using Terraria.Localization;
 using Terraria.ModLoader;
@@ -12,9 +13,37 @@ namespace ExampleMod
 {
     public class ExampleMod : Mod
 	{
-		internal static ExampleMod instance;
-        public override string Name => "ModÃû³Æ";
-        public override Version tModLoaderVersion => base.tModLoaderVersion;
+	    static ExampleMod()
+	    {
+            // Load dllReferences from EmbeddedResource
+	        AppDomain.CurrentDomain.AssemblyResolve += (o, args) =>
+	        {
+	            var name = new AssemblyName(args.Name).Name + ".dll";
+	            string text = Array.Find(typeof(ExampleMod).Assembly.GetManifestResourceNames(),
+	                (element) => element.EndsWith(name));
+	            if (text != null)
+	            {
+	                using (Stream manifestResourceStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(text))
+	                {
+	                    byte[] array = new byte[manifestResourceStream.Length];
+	                    manifestResourceStream.Read(array, 0, array.Length);
+	                    return Assembly.Load(array);
+	                }
+	            }
+	            return  null;
+	        };
+        }
+
+	    internal static ExampleMod instance;
+        public override string Name
+        {
+            get
+            {
+                return "Modåç§°";
+            }
+        }
+
+	    public override Version tModLoaderVersion => base.tModLoaderVersion;
         public override Version Version => base.Version;
         public override void AddRecipeGroups()
         {

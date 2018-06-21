@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Diagnostics;
@@ -132,10 +132,10 @@ namespace tModVS
                 InitAR = true;
             }
             var p2 = ((VSProject)(p.GetValue(0) as Project).Object).References;
-            ModCompile.refItems.Clear();
+            ModCompile.RefItems.Clear();
             foreach (var refitem in p2)
             {
-                ModCompile.refItems.Add((string)((dynamic)refitem).Path);
+                ModCompile.RefItems.Add((string)((dynamic)refitem).Path);
             }
             ModCompile.Build();
             // string message = string.Format(CultureInfo.CurrentCulture, "Inside {0}.MenuItemCallback()", this.GetType().FullName);
