@@ -67,13 +67,18 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
-    <EmbeddedResource Include="Ref\Newtonsoft.Json.dll" />
-    <EmbeddedResource Include="Ref\dnlib.dll" />
+    <EmbeddedResource Include="Ref\Mono.Cecil.dll" />
+    <EmbeddedResource Include="Ref\Mono.Cecil.Pdb.dll" />
+    <EmbeddedResource Include="Ref\Microsoft.CodeAnalysis.CSharp.dll" />
+    <EmbeddedResource Include="Ref\Microsoft.CodeAnalysis.dll" />
     <Content Include="zh-cn\Extension.vsixlangpack">
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
     <None Include="app.config" />
     <None Include="Key.snk" />
+    <None Include="ProjectTemplates\My Exported Templates\Buff.zip" />
+    <None Include="ProjectTemplates\My Exported Templates\Command.zip" />
+    <None Include="ProjectTemplates\My Exported Templates\tMod Project.zip" />
     <Content Include="ProjectTemplates\tMod Project.zip">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
@@ -100,9 +105,6 @@
     </VSCTCompile>
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="dnlib">
-      <HintPath>Ref\dnlib.dll</HintPath>
-    </Reference>
     <Reference Include="EnvDTE, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
@@ -118,6 +120,12 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="Microsoft.VisualStudio.CommandBars, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <EmbedInteropTypes>False</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="Mono.Cecil">
+      <HintPath>..\..\mono\cecil\bin\net_4_0_Release\Mono.Cecil.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil.Pdb">
+      <HintPath>..\..\mono\cecil\bin\net_4_0_Release\Mono.Cecil.Pdb.dll</HintPath>
     </Reference>
     <Reference Include="stdole, Version=7.0.3300.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <EmbedInteropTypes>False</EmbedInteropTypes>

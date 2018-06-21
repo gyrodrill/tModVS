@@ -68,9 +68,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="References\FNA.dll" />
-    <Content Include="References\Microsoft.CodeAnalysis.CSharp.dll" />
-    <Content Include="References\Microsoft.CodeAnalysis.dll" />
-    <Content Include="References\RoslynWrapper.dll" />
+    <EmbeddedResource Include="References\Newtonsoft.Json.dll" />
     <Content Include="References\tModLoaderMac.exe" />
     <Content Include="References\tModLoaderWindows.exe" />
   </ItemGroup>
@@ -83,8 +81,4 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSHARP.Targets" />
   <ProjectExtensions />
-  <PropertyGroup>
-    <PostBuildEvent>for /f "tokens=* delims=" %25%25i in ('"$(ProjectDir)..\setup\bin\setup" --steamdir') do set TERRARIASTEAMDIR=%25%25i
-"%25TERRARIASTEAMDIR%25\tModLoaderServerDebug.exe" -build "$(ProjectDir)\" -eac "$(TargetPath)"</PostBuildEvent>
-  </PropertyGroup>
 </Project>

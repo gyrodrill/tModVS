@@ -7,7 +7,7 @@
   "hideCode": true,
   "hideResources": true,
   "homepage": "https//gyrodrill.github.io/tMod",
-  "includeSource": false,
+  "includePdb": true,
   // 引用的Mod
   "modReferences": [],
   // 内部名称，应和public class xxxx : Mod的命名空间的第一段相同
@@ -19,5 +19,8 @@
   "tModLoaderVersion": "0.10.1.4",
   "version": "0.0.0.1",
   "weakReferences": [],
-  "compileoption": "/optimize"
+  "compileoption": "/optimize",
+  "allowUnsafe": true,
+  // 是否禁用优化
+  "debugBuild": true 
 }

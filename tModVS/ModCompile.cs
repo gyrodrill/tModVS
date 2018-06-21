@@ -1,6 +1,4 @@
 ﻿//using AssemblyHashAlgorithm = Mono.Cecil.AssemblyHashAlgorithm;
-using dnlib.DotNet;
-using dnlib.DotNet.Writer;
 using Ionic.Zlib;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -24,7 +22,8 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using CustomAttribute = dnlib.DotNet.CustomAttribute;
+using Mono.Cecil;
+using AssemblyDef = Mono.Cecil.AssemblyDefinition;
 
 namespace tModVS
 {
@@ -43,8 +42,11 @@ namespace tModVS
         public string homepage;
         public string description;
         public bool editAndContinue;
+        public bool includePdb;
         public byte side = 0;
         public string compileoption;
+        public bool allowUnsafe;
+        public bool debugBuild;
     }
     internal class TmodFile
     {
@@ -267,18 +269,16 @@ namespace tModVS
         internal static string ModProjectFolder;
         internal static bool Build()
         {
-            byte[] winDLL = null;
-            byte[] monoDLL = null;
             TmodFile mod = new TmodFile();
             mod.prop = JsonConvert.DeserializeObject<TmodProp>(
                 File.ReadAllText(Path.Combine(ModProjectFolder, "build.json")));
-            CompileMod(mod.prop, true, ref winDLL);
+            CompileMod(mod.prop, true, out var winDLL, out var pdb);
             if (winDLL == null)
             {
                 Debug.WriteLine("Win dll == null");
                 return false;
             }
-            CompileMod(mod.prop, false, ref monoDLL);
+            CompileMod(mod.prop, false, out var monoDLL, out _);
             if (monoDLL == null)
             {
                 Debug.WriteLine("Mono dll == null");
@@ -293,10 +293,12 @@ namespace tModVS
             if (Equal(winDLL, monoDLL))
             {
                 mod.AddFile("All.dll", winDLL);
+                mod.AddFile("All.pdb", pdb);
             }
             else
             {
                 mod.AddFile("Windows.dll", winDLL);
+                mod.AddFile("Windows.pdb", pdb);
                 mod.AddFile("Mono.dll", monoDLL);
             }
             foreach (var resource in Directory.GetFiles(ModProjectFolder, "*", SearchOption.AllDirectories))
@@ -333,8 +335,8 @@ namespace tModVS
         }
         private static bool VerifyName(string modName, byte[] dll)
         {
-            var asmDef = dnlib.DotNet.AssemblyDef.Load(new MemoryStream(dll));
-            var asmName = asmDef.Name;
+            var asmDef = AssemblyDef.ReadAssembly(new MemoryStream(dll));
+            var asmName = asmDef.Name.Name;
             if (asmName != modName)
             {
                 Debug.WriteLine("tModLoader.BuildErrorModNameDoesntMatchAssemblyName");
@@ -350,8 +352,8 @@ namespace tModVS
             // Verify that folder and namespace match up
             try
             {
-                var modClassType = asmDef.ManifestModule.Types.Single(x => x.BaseType?.FullName == "Terraria.ModLoader.Mod");
-                string topNamespace = modClassType.Namespace.String.Split('.')[0];
+                var modClassType = asmDef.MainModule.Types.Single(x => x.BaseType?.FullName == "Terraria.ModLoader.Mod");
+                string topNamespace = modClassType.Namespace.Split('.')[0];
                 if (topNamespace != modName)
                 {
                     Debug.WriteLine("tModLoader.BuildErrorNamespaceFolderDontMatch");
@@ -383,8 +385,9 @@ namespace tModVS
             return true;
         }
         public static List<string> refItems = new List<string>();
-        private static void CompileMod(TmodProp prop, bool win, ref byte[] dll)
+        private static void CompileMod(TmodProp prop, bool win, out byte[] dll, out byte[] pdb)
         {
+            dll = pdb = new byte[0];
             //collect all dll references
             var tempDir = Path.Combine(ModProjectFolder, "compile_temp");
             Directory.CreateDirectory(tempDir);
@@ -404,34 +407,45 @@ namespace tModVS
             //        refs.Add(path);
             //    }
             //}
-
-            var compileOptions = new CompilerParameters
-            {
-                OutputAssembly = Path.Combine(tempDir, prop.name + ".dll"),
-                GenerateExecutable = false,
-                GenerateInMemory = false,
-                TempFiles = new TempFileCollection(tempDir, true),
-                IncludeDebugInformation = true,
-                CompilerOptions = prop.compileoption
-            };
             GetTerrariaReferences(win);
-            compileOptions.ReferencedAssemblies.AddRange(refItems.ToArray());
             var files = Directory.GetFiles(ModProjectFolder, "*.cs", SearchOption.AllDirectories)
                 .Where(f => !f.StartsWith("_")).ToArray();
 
             try
             {
-                var (results, dat) = Compile(compileOptions, files);
-
-                if (results.Errors.HasErrors)
+                var options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, null, null, null, null,
+                    prop.debugBuild ? OptimizationLevel.Debug : OptimizationLevel.Release, false, prop.allowUnsafe,
+                    null, null, default(ImmutableArray<byte>), null, Platform.AnyCpu, ReportDiagnostic.Default, 4,
+                    null, true, false, null, null, null, DesktopAssemblyIdentityComparer.Default, null);
+                var peRef = from string s in refItems
+                                 select MetadataReference.CreateFromFile(s);
+                var synTree = from f in files
+                                  select SyntaxFactory.ParseSyntaxTree(File.ReadAllText(f), null, f, Encoding.UTF8);
+                var dll1 = new MemoryStream();
+                var pdb1 = new MemoryStream();
+                EmitResult emitResult = CSharpCompilation.Create(prop.name, synTree, peRef, options).Emit(dll1, pdb1);
+                var compilerResults = new CompilerResults(new TempFileCollection(tempDir, true));
+                foreach (Diagnostic diagnostic in emitResult.Diagnostics)
                 {
-                    Debug.WriteLine("Compile Error: " + results.Errors[0]);
+                    if (diagnostic.Severity == DiagnosticSeverity.Error)
+                    {
+                        FileLinePositionSpan lineSpan = diagnostic.Location.GetLineSpan();
+                        LinePosition startLinePosition = lineSpan.StartLinePosition;
+                        compilerResults.Errors.Add(new CompilerError(lineSpan.Path, startLinePosition.Line, startLinePosition.Character, diagnostic.Id, diagnostic.GetMessage(null)));
+                    }
+                }
+                if (compilerResults.Errors.HasErrors)
+                {
+                    Debug.WriteLine("Compile Error: " + compilerResults.Errors[0]);
                     return;
                 }
-                // FIXME: move AsmRef of ExtensionAttribute to System.Core.dll for Mono
-                // But why...
-                // Using dnlib to avoid Pdb problem but I can not change Scope...
-                dll = PostProcess(dat, win);
+                if (win && prop.includePdb)
+                {
+                    pdb = pdb1.ToArray();
+                }
+                dll = PostProcess(dll1.ToArray(), win);
+                File.WriteAllBytes(Path.Combine(tempDir, prop.name + ".dll"), dll);
+                File.WriteAllBytes(Path.Combine(tempDir, prop.name + ".pdb"), pdb1.ToArray());
             }
             finally
             {
@@ -472,51 +486,18 @@ namespace tModVS
             }
 
             refItems.Add(mainModulePath);
-            var asm = AssemblyDef.Load(mainModulePath);
-            foreach (var res in asm.ManifestModule.Resources.OfType<EmbeddedResource>().Where(res => res.Name.EndsWith(".dll")))
+            var asm = AssemblyDef.ReadAssembly(mainModulePath);
+            foreach (var res in asm.MainModule.Resources.OfType<EmbeddedResource>().Where(res => res.Name.EndsWith(".dll")))
             {
                 var path = Path.Combine(ModProjectFolder, "References", "Embedded", Path.GetFileName(res.Name));
-                using (Stream s = res.CreateReader().AsStream(), file = File.Create(path))
+                using (Stream s = res.GetResourceStream(), file = File.Create(path))
                 {
                     s.CopyTo(file);
                 }
                 refItems.Add(path);
             }
         }
-        public static (CompilerResults, byte[]) Compile(CompilerParameters args, string[] files)
-        {
-            string name = Path.GetFileNameWithoutExtension(args.OutputAssembly);
-            CSharpCompilationOptions options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, null, null, null, null, OptimizationLevel.Debug, false, false, null, null, default(ImmutableArray<byte>), null, Platform.AnyCpu, ReportDiagnostic.Default, 4, null, true, false, null, null, null, null, null).WithOptimizationLevel(OptimizationLevel.Debug).WithAssemblyIdentityComparer(DesktopAssemblyIdentityComparer.Default);
-            IEnumerable<PortableExecutableReference> references = from string s in args.ReferencedAssemblies
-                                                                  select MetadataReference.CreateFromFile(s);
-            IEnumerable<SyntaxTree> syntaxTrees = from f in files
-                                                  select SyntaxFactory.ParseSyntaxTree(File.ReadAllText(f), null, f, Encoding.UTF8);
-            MemoryStream ms = new MemoryStream();
-            EmitResult emitResult = CSharpCompilation.Create(name, syntaxTrees, references, options).Emit(ms);
-            CompilerResults compilerResults = new CompilerResults(args.TempFiles);
-            foreach (Diagnostic diagnostic in emitResult.Diagnostics)
-            {
-                if (diagnostic.Severity == DiagnosticSeverity.Error)
-                {
-                    FileLinePositionSpan lineSpan = diagnostic.Location.GetLineSpan();
-                    LinePosition startLinePosition = lineSpan.StartLinePosition;
-                    compilerResults.Errors.Add(new CompilerError(lineSpan.Path, startLinePosition.Line, startLinePosition.Character, diagnostic.Id, diagnostic.GetMessage(null)));
-                }
-            }
-            return (compilerResults, ms.ToArray());
-        }
-        //private static AssemblyNameReference GetOrAddSystemCore(AssemblyDef asm)
-        //{
-        //    var assemblyRef = asm.ManifestModule.GetAssemblyRefs().SingleOrDefault(r => r.Name == "System.Core");
-        //    if (assemblyRef == null)
-        //    {
-        //        Importer importer = new Importer(asm.ManifestModule);
-        //        ITypeDefOrRef ienum = importer.Import(typeof(Enumerable));
-        //        IMethod writeLine = importer.Import(typeof(System.Console).GetMethod("WriteLine"));
-        //        asm.ManifestModule.MDToken
-        //    }
-        //    return assemblyRef;
-        //}
+
         private static byte[] PostProcess(byte[] dll, bool forWindows)
         {
             if (forWindows)
@@ -524,22 +505,34 @@ namespace tModVS
                 return dll;
             }
 
-            var asm = AssemblyDef.Load(new MemoryStream(dll));
-            Importer importer = new Importer(asm.ManifestModule);
-            importer.Import(typeof(ExtensionAttribute));
-            var imethod = (ICustomAttributeType) importer.Import(typeof(ExtensionAttribute).TypeInitializer);
+            var asm = AssemblyDef.ReadAssembly(new MemoryStream(dll));
+            AssemblyNameReference SystemCoreRef = null;
             foreach (var module in asm.Modules)
             {
                 foreach (var type in module.Types)
                 {
                     foreach (var met in type.Methods)
                     {
-                        for (var index = 0; index < met.CustomAttributes.Count; index++)
+                        foreach (var attr in met.CustomAttributes)
                         {
-                            if (met.CustomAttributes[index].AttributeType.FullName == "System.Runtime.CompilerServices.ExtensionAttribute")
+                            if (attr.AttributeType.FullName == "System.Runtime.CompilerServices.ExtensionAttribute")
                             {
-                                met.CustomAttributes[index] = new CustomAttribute(imethod);
-                                //attr.AttributeType.Scope = SystemCoreRef ?? (SystemCoreRef = GetOrAddSystemCore(module));
+                                var assemblyRef = module.AssemblyReferences.SingleOrDefault(r => r.Name == "System.Core");
+                                if (assemblyRef == null)
+                                {
+                                    //System.Linq.Enumerable is in System.Core
+                                    var name = Assembly.GetAssembly(typeof(Enumerable)).GetName();
+                                    assemblyRef = new AssemblyNameReference(name.Name, name.Version)
+                                    {
+                                        Culture = name.CultureInfo.Name,
+                                        PublicKeyToken = name.GetPublicKeyToken(),
+                                        HashAlgorithm = (Mono.Cecil.AssemblyHashAlgorithm) name.HashAlgorithm
+                                    };
+                                    module.AssemblyReferences.Add(assemblyRef);
+                                }
+
+                                attr.AttributeType.Scope =
+                                    SystemCoreRef ?? (SystemCoreRef = assemblyRef);
                             }
                         }
                     }
