@@ -42,7 +42,6 @@ namespace tModVS
         public bool editAndContinue;
         public bool includePdb;
         public byte side = 0;
-        public string compileoption;
         public bool allowUnsafe;
         public bool debugBuild;
     }

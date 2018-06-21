@@ -54,7 +54,6 @@
           If you do not want an image next to your command, remove the Icon node /> -->
       <Button guid="guidtModBuildPackageCmdSet" id="tModBuildId" priority="0x0100" type="Button">
         <Parent guid="guidtModBuildPackageCmdSet" id="MyMenuGroup" />
-        <Icon guid="guidImages" id="bmpPic1" />
         <Strings>
           <ButtonText>Build tMod</ButtonText>
         </Strings>
