@@ -87,6 +87,12 @@ namespace tModVS
         }
 
         private static bool InitAR = false;
+
+        public delegate int MessageBoxDele(string messagec, string messagee, string title, OLEMSGICON icon,
+            OLEMSGBUTTON msgButton, OLEMSGDEFBUTTON defaultButton);
+
+        public static MessageBoxDele ShowMsg;
+
         /// <summary>
         /// This function is the callback used to execute the command when the menu item is clicked.
         /// See the constructor to see how the menu item is associated with this function using
@@ -99,11 +105,13 @@ namespace tModVS
             ThreadHelper.ThrowIfNotOnUIThread();
             var dte = (Package.GetGlobalService(typeof(SDTE)) as DTE);
             bool cn = dte.LocaleID == 2052;
+            ShowMsg = (messagec, messagee, title, icon, button, defaultButton) => VsShellUtilities.ShowMessageBox(
+                package, cn ? messagec : messagee, title, icon, button, defaultButton);
             var p = dte.ActiveSolutionProjects as Array;
             if (p.Length < 1)
             {
-                VsShellUtilities.ShowMessageBox(this.package, cn ? "请打开一个解决方案或项目后使用。" : "Open a solution or project before build tMod.",
-                    "tModVS", OLEMSGICON.OLEMSGICON_INFO, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                ShowMsg("请打开一个解决方案或项目后使用。", "Open a solution or project before build tMod."
+                    , "tModVS", OLEMSGICON.OLEMSGICON_INFO, OLEMSGBUTTON.OLEMSGBUTTON_OK,
                     OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
             }
             ModCompile.ModProjectFolder = Path.GetDirectoryName((p.GetValue(0) as Project).FullName);

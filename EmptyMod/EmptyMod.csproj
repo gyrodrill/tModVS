@@ -68,6 +68,10 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="References\FNA.dll" />
+    <Content Include="References\Microsoft.Xna.Framework.dll" />
+    <Content Include="References\Microsoft.Xna.Framework.Game.dll" />
+    <Content Include="References\Microsoft.Xna.Framework.Graphics.dll" />
+    <Content Include="References\Microsoft.Xna.Framework.Xact.dll" />
     <Content Include="References\tModLoaderMac.exe" />
     <Content Include="References\tModLoaderWindows.exe" />
   </ItemGroup>

@@ -1,25 +1,24 @@
-using Ionic.Zlib;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Emit;
-using Microsoft.CodeAnalysis.Text;
-using Mono.Cecil;
-using Newtonsoft.Json;
 using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using Ionic.Zlib;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
+using Microsoft.CodeAnalysis.Text;
+using Microsoft.VisualStudio.Shell.Interop;
+using Mono.Cecil;
+using Newtonsoft.Json;
 using AssemblyDef = Mono.Cecil.AssemblyDefinition;
 
 namespace tModVS
@@ -30,7 +29,6 @@ namespace tModVS
         public string name;
         public string author;
         public Version version;
-        //public string[] dllReferences;
         public string[] modReferences;
         public string[] embedResource;
         public string[] weakReferences;
@@ -77,15 +75,6 @@ namespace tModVS
             {
                 using (BinaryWriter binaryWriter = new BinaryWriter(memoryStream))
                 {
-                    //if (prop.dllReferences.Length != 0)
-                    //{
-                    //    binaryWriter.Write("dllReferences");
-                    //    foreach (var t in prop.dllReferences)
-                    //    {
-                    //        binaryWriter.Write(t);
-                    //    }
-                    //    binaryWriter.Write("");
-                    //}
                     if (prop.modReferences.Length != 0)
                     {
                         binaryWriter.Write("modReferences");
@@ -253,11 +242,7 @@ namespace tModVS
         {
             @"C:\Windows\Microsoft.NET\Framework\v4.0.30319\mscorlib.dll",
             @"C:\WINDOWS\Microsoft.Net\assembly\GAC_MSIL\System.Core\v4.0_4.0.0.0__b77a5c561934e089\System.Core.dll",
-            @"C:\WINDOWS\Microsoft.Net\assembly\GAC_32\Microsoft.Xna.Framework\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.dll",
-            @"C:\WINDOWS\Microsoft.Net\assembly\GAC_32\Microsoft.Xna.Framework.Graphics\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.Graphics.dll",
-            @"C:\WINDOWS\Microsoft.Net\assembly\GAC_32\Microsoft.Xna.Framework.Game\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.Game.dll",
             @"C:\WINDOWS\Microsoft.Net\assembly\GAC_MSIL\System\v4.0_4.0.0.0__b77a5c561934e089\System.dll",
-            @"C:\WINDOWS\Microsoft.Net\assembly\GAC_32\Microsoft.Xna.Framework.Xact\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.Xact.dll",
             @"C:\WINDOWS\Microsoft.Net\assembly\GAC_MSIL\System.Windows.Forms\v4.0_4.0.0.0__b77a5c561934e089\System.Windows.Forms.dll",
             @"C:\WINDOWS\Microsoft.Net\assembly\GAC_MSIL\System.Drawing\v4.0_4.0.0.0__b03f5f7f11d50a3a\System.Drawing.dll",
             @"C:\WINDOWS\Microsoft.Net\assembly\GAC_MSIL\WindowsBase\v4.0_4.0.0.0__31bf3856ad364e35\WindowsBase.dll"
@@ -271,32 +256,55 @@ namespace tModVS
             CompileMod(mod.prop, true, out var winDLL, out var pdb);
             if (winDLL == null)
             {
-                Debug.WriteLine("Win dll == null");
+                tModBuild.ShowMsg("Windows平台编译结果为null。", "Compile for Windows fail: result is null"
+                    , "tModVS", OLEMSGICON.OLEMSGICON_CRITICAL, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+                return;
+            }
+            if (winDLL.Length == 0)
+            {
+                tModBuild.ShowMsg("Windows平台编译结果为空byte[]。", "Compile for Windows fail: result is empty byte[]"
+                    , "tModVS", OLEMSGICON.OLEMSGICON_CRITICAL, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+                return;
+            }
+            if (!VerifyName(mod.prop.name, winDLL))
+            {
+                tModBuild.ShowMsg("Windows平台Mod名称校验失败。", "Fail to verify Mod name of Windows build"
+                    , "tModVS", OLEMSGICON.OLEMSGICON_WARNING, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
                 return;
             }
             CompileMod(mod.prop, false, out var monoDLL, out _);
             if (monoDLL == null)
             {
-                Debug.WriteLine("Mono dll == null");
+                tModBuild.ShowMsg("Mono平台编译结果为空byte[]。", "Compile for Mono fail: result is empty byte[]"
+                    , "tModVS", OLEMSGICON.OLEMSGICON_CRITICAL, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
                 return;
             }
-            if (!VerifyName(mod.prop.name, winDLL) || !VerifyName(mod.prop.name, monoDLL))
+            if (monoDLL.Length == 0)
             {
-                Debug.WriteLine("Verify name fail");
+                tModBuild.ShowMsg("Mono平台编译结果为空byte[]。", "Compile for Mono fail: result is empty byte[]"
+                    , "tModVS", OLEMSGICON.OLEMSGICON_CRITICAL, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+                return;
+            }
+            if (!VerifyName(mod.prop.name, monoDLL))
+            {
+                tModBuild.ShowMsg("Mono平台Mod名称校验失败。", "Fail to verify Mod name of Mono build"
+                    , "tModVS", OLEMSGICON.OLEMSGICON_WARNING, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
                 return;
             }
             mod.AddFile("Info", mod.GetInfo());
-            if (Equal(winDLL, monoDLL))
+            // They will never be equal I guess
+            mod.AddFile("Windows.dll", winDLL);
+            if (mod.prop.includePdb)
             {
-                mod.AddFile("All.dll", winDLL);
-                mod.AddFile("All.pdb", pdb);
-            }
-            else
-            {
-                mod.AddFile("Windows.dll", winDLL);
                 mod.AddFile("Windows.pdb", pdb);
-                mod.AddFile("Mono.dll", monoDLL);
             }
+            mod.AddFile("Mono.dll", monoDLL);
             foreach (var resource in Directory.GetFiles(ModProjectFolder, "*", SearchOption.AllDirectories))
             {
                 var relPath = resource.Substring(ModProjectFolder.Length + 1);
@@ -307,78 +315,92 @@ namespace tModVS
                 mod.AddResource(relPath, resource);
             }
             mod.Save();
+            tModBuild.ShowMsg("Mod打包完毕。", "Mod build finish."
+                , "tModVS", OLEMSGICON.OLEMSGICON_INFO, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
         }
         private static bool VerifyName(string modName, byte[] dll)
         {
             var asmDef = AssemblyDef.ReadAssembly(new MemoryStream(dll));
-            var asmName = asmDef.Name.Name;
-            if (asmName != modName)
-            {
-                Debug.WriteLine("tModLoader.BuildErrorModNameDoesntMatchAssemblyName");
-                return false;
-            }
-
             if (modName.Equals("Terraria", StringComparison.InvariantCultureIgnoreCase))
             {
-                Debug.WriteLine("tModLoader.BuildErrorModNamedTerraria");
+                tModBuild.ShowMsg("Mod名称为Terraria", "Mod named Terraria"
+                    , "tModVS", OLEMSGICON.OLEMSGICON_WARNING, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
                 return false;
             }
-
-            // Verify that folder and namespace match up
             try
             {
                 var modClassType = asmDef.MainModule.Types.Single(x => x.BaseType?.FullName == "Terraria.ModLoader.Mod");
                 string topNamespace = modClassType.Namespace.Split('.')[0];
                 if (topNamespace != modName)
                 {
-                    Debug.WriteLine("tModLoader.BuildErrorNamespaceFolderDontMatch");
+                    tModBuild.ShowMsg("Mod所在的命名空间和Mod名称不同", "Mod namespace not match its name"
+                        , "tModVS", OLEMSGICON.OLEMSGICON_WARNING, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                        OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
                     return false;
                 }
             }
             catch
             {
-                Debug.WriteLine("tModLoader.BuildErrorNoModClass");
+                tModBuild.ShowMsg("没有找到继承Terraria.ModLoader.Mod的类", "No Terraria.ModLoader.Mod class found"
+                    , "tModVS", OLEMSGICON.OLEMSGICON_WARNING, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
                 return false;
             }
 
-            return true;
-        }
-        private static bool Equal(byte[] a, byte[] b)
-        {
-            if (a.Length != b.Length)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < a.Length; i++)
-            {
-                if (a[i] != b[i])
-                {
-                    return false;
-                }
-            }
             return true;
         }
         public static List<string> RefItems = new List<string>();
+
         private static void CompileMod(TmodProp prop, bool win, out byte[] dll, out byte[] pdb)
         {
+            RefItems.AddRange(ModuleReferences);
+            RefItems.RemoveAll(path =>
+            {
+                var name = Path.GetFileNameWithoutExtension(path);
+                return name == "Terraria" || name.StartsWith("tModLoader") || name == "FNA" || name.StartsWith("Microsoft.Xna.Framework");
+            });
+            if (win)
+            {
+                RefItems.Add(Path.Combine(ModProjectFolder, "References", "Microsoft.Xna.Framework.dll"));
+                RefItems.Add(Path.Combine(ModProjectFolder, "References", "Microsoft.Xna.Framework.Game.dll"));
+                RefItems.Add(Path.Combine(ModProjectFolder, "References", "Microsoft.Xna.Framework.Graphics.dll"));
+                RefItems.Add(Path.Combine(ModProjectFolder, "References", "Microsoft.Xna.Framework.Xact.dll"));
+            }
+            else
+            {
+                RefItems.Add(Path.Combine(ModProjectFolder, "References", "FNA.dll"));
+            }
+            var terrariaPath = Path.Combine(ModProjectFolder, "References",
+                win ? "tModLoaderWindows.exe" : "tModLoaderMac.exe");
+            RefItems.Add(terrariaPath);
+            var asm = AssemblyDef.ReadAssembly(terrariaPath);
+            foreach (var res in asm.MainModule.Resources.OfType<EmbeddedResource>()
+                .Where(res => res.Name.EndsWith(".dll")))
+            {
+                var path = Path.Combine(ModProjectFolder, "References", "Embedded", Path.GetFileName(res.Name));
+                using (Stream s1 = res.GetResourceStream(), file = File.Create(path))
+                {
+                    s1.CopyTo(file);
+                }
+                RefItems.Add(path);
+            }
             dll = pdb = new byte[0];
             var tempDir = Path.Combine(ModProjectFolder, "compile_temp");
             Directory.CreateDirectory(tempDir);
-            GetTerrariaReferences(win);
             var files = Directory.GetFiles(ModProjectFolder, "*.cs", SearchOption.AllDirectories)
                 .Where(f => !f.StartsWith("_")).ToArray();
-
             try
             {
                 var options = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, null, null, null, null,
                     prop.debugBuild ? OptimizationLevel.Debug : OptimizationLevel.Release, false, prop.allowUnsafe,
                     null, null, default(ImmutableArray<byte>), null, Platform.AnyCpu, ReportDiagnostic.Default, 4,
                     null, true, false, null, null, null, DesktopAssemblyIdentityComparer.Default, null);
-                var peRef = from string s in RefItems
-                                 select MetadataReference.CreateFromFile(s);
+                var peRef = from string s in RefItems.Distinct()
+                    select MetadataReference.CreateFromFile(s);
                 var synTree = from f in files
-                                  select SyntaxFactory.ParseSyntaxTree(File.ReadAllText(f), null, f, Encoding.UTF8);
+                    select SyntaxFactory.ParseSyntaxTree(File.ReadAllText(f), null, f, Encoding.UTF8);
                 var dll1 = new MemoryStream();
                 var pdb1 = new MemoryStream();
                 EmitResult emitResult = CSharpCompilation.Create(prop.name, synTree, peRef, options)
@@ -398,16 +420,58 @@ namespace tModVS
                 }
                 if (compilerResults.Errors.HasErrors)
                 {
-                    Debug.WriteLine("Compile Error: " + compilerResults.Errors[0]);
+                    var cer = string.Join("\r\n", compilerResults.Errors.Cast<string>());
+                    tModBuild.ShowMsg("编译错误:\r\n" + cer, "Compile error:\r\n" + cer
+                        , "tModVS", OLEMSGICON.OLEMSGICON_WARNING, OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                        OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
                     return;
                 }
-                if (win && prop.includePdb)
+                pdb = pdb1.ToArray();
+                if (win)
                 {
-                    pdb = pdb1.ToArray();
+                    dll = dll1.ToArray();
                 }
-                dll = PostProcess(dll1.ToArray(), win);
+                else
+                {
+                    var monoAsm = AssemblyDef.ReadAssembly(new MemoryStream(dll));
+                    AssemblyNameReference systemCoreRef = null;
+                    foreach (var module in monoAsm.Modules)
+                    {
+                        foreach (var type in module.Types)
+                        {
+                            foreach (var met in type.Methods)
+                            {
+                                foreach (var attr in met.CustomAttributes)
+                                {
+                                    if (attr.AttributeType.FullName == "System.Runtime.CompilerServices.ExtensionAttribute")
+                                    {
+                                        var assemblyRef = module.AssemblyReferences.SingleOrDefault(r => r.Name == "System.Core");
+                                        if (assemblyRef == null)
+                                        {
+                                            var name = Assembly.GetAssembly(typeof(Enumerable)).GetName();
+                                            assemblyRef = new AssemblyNameReference(name.Name, name.Version)
+                                            {
+                                                Culture = name.CultureInfo.Name,
+                                                PublicKeyToken = name.GetPublicKeyToken(),
+                                                HashAlgorithm = (Mono.Cecil.AssemblyHashAlgorithm)name.HashAlgorithm
+                                            };
+                                            module.AssemblyReferences.Add(assemblyRef);
+                                        }
+
+                                        attr.AttributeType.Scope =
+                                            systemCoreRef ?? (systemCoreRef = assemblyRef);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    var ret = new MemoryStream();
+                    monoAsm.Write(ret);
+                    dll = ret.ToArray();
+                }
                 File.WriteAllBytes(Path.Combine(tempDir, prop.name + ".dll"), dll);
-                File.WriteAllBytes(Path.Combine(tempDir, prop.name + ".pdb"), pdb1.ToArray());
+                File.WriteAllBytes(Path.Combine(tempDir, prop.name + ".pdb"), pdb);
             }
             finally
             {
@@ -426,84 +490,6 @@ namespace tModVS
                     }
                 }
             }
-        }
-        private static void GetTerrariaReferences(bool forWindows)
-        {
-            var mainModulePath = Path.Combine(ModProjectFolder, "References",
-                forWindows ? "tModLoaderWindows.exe" : "tModLoaderMac.exe");
-            RefItems.AddRange(ModuleReferences);
-            RefItems.RemoveAll(path =>
-            {
-                var name = Path.GetFileNameWithoutExtension(path);
-                return name == "Terraria" || name.StartsWith("tModLoader");
-            });
-            if (!forWindows)
-            {
-                RefItems.RemoveAll(path =>
-                {
-                    var name = Path.GetFileName(path);
-                    return name == "FNA.dll" || name.StartsWith("Microsoft.Xna.Framework");
-                });
-                RefItems.Add(Path.Combine(ModProjectFolder, "References", "FNA.dll"));
-            }
-
-            RefItems.Add(mainModulePath);
-            var asm = AssemblyDef.ReadAssembly(mainModulePath);
-            foreach (var res in asm.MainModule.Resources.OfType<EmbeddedResource>().Where(res => res.Name.EndsWith(".dll")))
-            {
-                var path = Path.Combine(ModProjectFolder, "References", "Embedded", Path.GetFileName(res.Name));
-                using (Stream s = res.GetResourceStream(), file = File.Create(path))
-                {
-                    s.CopyTo(file);
-                }
-                RefItems.Add(path);
-            }
-
-            RefItems = RefItems.Distinct().ToList();
-        }
-        private static byte[] PostProcess(byte[] dll, bool forWindows)
-        {
-            if (forWindows)
-            {
-                return dll;
-            }
-
-            var asm = AssemblyDef.ReadAssembly(new MemoryStream(dll));
-            AssemblyNameReference SystemCoreRef = null;
-            foreach (var module in asm.Modules)
-            {
-                foreach (var type in module.Types)
-                {
-                    foreach (var met in type.Methods)
-                    {
-                        foreach (var attr in met.CustomAttributes)
-                        {
-                            if (attr.AttributeType.FullName == "System.Runtime.CompilerServices.ExtensionAttribute")
-                            {
-                                var assemblyRef = module.AssemblyReferences.SingleOrDefault(r => r.Name == "System.Core");
-                                if (assemblyRef == null)
-                                {
-                                    var name = Assembly.GetAssembly(typeof(Enumerable)).GetName();
-                                    assemblyRef = new AssemblyNameReference(name.Name, name.Version)
-                                    {
-                                        Culture = name.CultureInfo.Name,
-                                        PublicKeyToken = name.GetPublicKeyToken(),
-                                        HashAlgorithm = (Mono.Cecil.AssemblyHashAlgorithm) name.HashAlgorithm
-                                    };
-                                    module.AssemblyReferences.Add(assemblyRef);
-                                }
-
-                                attr.AttributeType.Scope =
-                                    SystemCoreRef ?? (SystemCoreRef = assemblyRef);
-                            }
-                        }
-                    }
-                }
-            }
-
-            var ret = new MemoryStream();
-            asm.Write(ret);
-            return ret.ToArray();
         }
     }
 }
