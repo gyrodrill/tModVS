@@ -420,7 +420,8 @@ namespace tModVS
                 }
                 if (compilerResults.Errors.HasErrors)
                 {
-                    var cer = string.Join("\r\n", compilerResults.Errors.Cast<string>());
+                    var cer = string.Join("\r\n",
+                        compilerResults.Errors.Cast<CompilerError>().Select(e => e.ToString()));
                     tModBuild.ShowMsg("±‡“Î¥ÌŒÛ:\r\n" + cer, "Compile error:\r\n" + cer
                         , "tModVS", OLEMSGICON.OLEMSGICON_WARNING, OLEMSGBUTTON.OLEMSGBUTTON_OK,
                         OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
